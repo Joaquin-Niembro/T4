@@ -1,4 +1,5 @@
 import React, {useState, useEffect} from 'react';
+import axios from 'axios';
 import {
   View,
   Text,
@@ -7,48 +8,17 @@ import {
   TextInput,
   TouchableOpacity,
 } from 'react-native';
-import SQLite from 'react-native-sqlite-storage';
-const db = SQLite.openDatabase({name: 'myhomework'});
+
 const T = ({navigation}) => {
   const [datas, setDatas] = useState([]);
   useEffect(function () {
-    db.transaction(function (t) {
-      t.executeSql(
-        'CREATE TABLE IF NOT EXISTS notes (' +
-          'id    INTEGER         PRIMARY KEY     AUTOINCREMENT,' +
-          'title        VARCHAR(128)    NOT NULL,' +
-          'description       VARCHAR(128)     NOT NULL,' +
-          'color VARCHAR(50) NOT NULL' +
-          ');',
-        [],
-        () => console.log('CREATED TABLE notes'),
-        error => console.log({error}),
-      );
-    });
+    const fetch = async () => {
+      const res = await axios.get('http://1948ea12a65a.ngrok.io/api/notes');
+      setDatas(res.data);
+    };
+    fetch();
   }, []);
-  useEffect(
-    function () {
-      navigation.addListener('focus', function () {
-        db.transaction(function (t) {
-          t.executeSql(
-            'SELECT * FROM notes',
-            [],
-            function (tx, res) {
-              let data = [];
-              for (let i = 0; i < res.rows.length; i++) {
-                data.push(res.rows.item(i));
-              }
-              setDatas(data);
-            },
-            error => {
-              console.log({error});
-            },
-          );
-        });
-      });
-    },
-    [navigation],
-  );
+
   return (
     <View
       style={{
@@ -84,27 +54,26 @@ export const Create = ({navigation}) => {
     description: '',
     color: '',
   });
-  const btnAgregarOnPress = function () {
-    if (form.title.length === 0) {
-      alert('Favor de poner titulo');
-      return;
-    }
-    if (form.description.length === 0) {
-      alert('Favor de poner description');
-      return;
-    }
-
-    db.transaction(function (t) {
-      t.executeSql(
-        'INSERT INTO notes (title, description, color) VALUES (?,?,?)',
-        [form.title, form.description, form.color],
-        function (tx, res) {
-          console.log(res);
-          navigation.navigate('T');
+  const btnAgregarOnPress = async function () {
+    try {
+      if (form.title.length === 0) {
+        alert('Favor de poner titulo');
+        return;
+      }
+      if (form.description.length === 0) {
+        alert('Favor de poner description');
+        return;
+      }
+      await axios.post('http://1948ea12a65a.ngrok.io/api/notes', {
+        note: {
+          title: form.title,
+          description: form.description,
+          color: form.color,
         },
-        error => console.log({error}),
-      );
-    });
+      });
+    } catch (error) {
+      console.log(error);
+    }
   };
 
   return (
@@ -131,6 +100,7 @@ export const Create = ({navigation}) => {
         onChangeText={e => setForm({...form, color: e})}
       />
       <Button title="Create" onPress={btnAgregarOnPress} />
+      <Button title="go back" onPress={() => navigation.navigate('T')} />
     </View>
   );
 };
@@ -138,35 +108,23 @@ export const Create = ({navigation}) => {
 export const Show = ({route: {params}, navigation}) => {
   const [j, setJ] = useState(params.color);
   useEffect(() => {
-    db.transaction(tx => {
-      tx.executeSql(
-        'UPDATE notes SET  color = ? WHERE id = ?',
-        [j, params.id],
-        (tx, result) => {
-          if (result.rowsAffected.length === 0) {
-            alert('No se actualizaron los datos. Intente de nuevo');
-            return;
-          }
+    async function fetch() {
+      await axios.put(`http://1948ea12a65a.ngrok.io/api/notes/${params.id}`, {
+        note: {
+          title: params.title,
+          description: params.description,
+          color: j,
         },
-        error => console.log(error),
-      );
-    });
+      });
+    }
+    fetch();
   }, [j]);
-  function onEliminarPress() {
-    db.transaction(tx => {
-      tx.executeSql(
-        'DELETE FROM notes WHERE id = ?',
-        [params.id],
-        (tx, res) => {
-          if (res.rowsAffected === 0) {
-            alert('Fallo al eliminar', 'No se eliminó el registro');
-          }
-
-          navigation.navigate('T');
-        },
-        error => console.log(error),
-      );
-    });
+  async function onEliminarPress() {
+    try {
+      await axios.delete(`http://1948ea12a65a.ngrok.io/api/notes/${params.id}`);
+    } catch (error) {
+      console.log(error);
+    }
   }
   const colors = ['red', 'blue', 'green', 'yellow'];
   return (
@@ -208,6 +166,7 @@ export const Show = ({route: {params}, navigation}) => {
             margin: 5,
           }}></TouchableOpacity>
       ))}
+      <Button title="go back" onPress={() => navigation.navigate('T')} />
     </View>
   );
 };
@@ -218,23 +177,18 @@ export const Update = ({route: {params}, navigation}) => {
     description: params.description,
     color: params.color,
   });
-  function onGuardarPress() {
-    db.transaction(tx => {
-      tx.executeSql(
-        'UPDATE notes SET title = ?, description = ?, color = ? WHERE id = ?',
-        [form.title, form.description, form.color, params.id],
-        (tx, result) => {
-          if (result.rowsAffected.length === 0) {
-            Alert.alert('No se actualizaron los datos. Intente de nuevo');
-            return;
-          }
-
-          alert('Datos actualizados correctamente');
-          navigation.navigate('T');
+  async function onGuardarPress() {
+    try {
+      await axios.put(`http://1948ea12a65a.ngrok.io/api/notes/${params.id}`, {
+        note: {
+          title: form.title,
+          description: form.description,
+          color: form.color,
         },
-        error => console.log(error),
-      );
-    });
+      });
+    } catch (error) {
+      console.log(error);
+    }
   }
   return (
     <View
